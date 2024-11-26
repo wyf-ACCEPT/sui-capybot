@@ -118,7 +118,7 @@ export class Capybot {
   ) {
     if (transactionBlock.blockData.transactions.length !== 0) {
       try {
-        transactionBlock.setGasBudget(1500000000);
+        transactionBlock.setGasBudget(50_000_000);  // 0.05 SUI
         let result = await this.signer.signAndExecuteTransactionBlock({
           transactionBlock,
           requestType: "WaitForLocalExecution",

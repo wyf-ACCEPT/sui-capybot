@@ -4,9 +4,8 @@ import { BinanceBTCtoUSDC } from "./data_sources/binance/BinanceBTCtoUSDC";
 import { CetusPool } from "./dexs/cetus/cetus";
 import { TurbosPool } from "./dexs/turbos/turbos";
 import { Arbitrage } from "./strategies/arbitrage";
-import { MarketDifference } from "./strategies/market_difference";
-import { RideTheTrend } from "./strategies/ride_the_trend";
-import { RideTheExternalTrend } from "./strategies/ride_the_external_trend";
+import { formatUnits, parseUnits } from "ethers";
+import { readFileSync } from "fs";
 
 // Convenience map from name to address for commonly used coins
 export const coins = {
@@ -23,10 +22,14 @@ export const coins = {
   WBTC: "0x027792d9fed7f9844eb4839566001bb6f6cb4804f66aa2da6fe1ee242d896881::coin::COIN",
 };
 
+export const coinsReverse = Object.fromEntries(
+  Object.entries(coins).map(([key, value]) => [value, key])
+);
+
 // Setup default amount to trade for each token in each pool. Set to approximately 1 USD each.
 export const defaultAmount: Record<string, number> = {};
-defaultAmount[coins.SUI] = 1_000_000_000;
-defaultAmount[coins.USDC] = 1_000_000;
+defaultAmount[coins.SUI] = Number(parseUnits("0.01", 9));
+defaultAmount[coins.USDC] = Number(parseUnits("0.01", 6));
 defaultAmount[coins.CETUS] = 15_000_000_000;
 defaultAmount[coins.CETUS0] = 15_000_000_000;
 defaultAmount[coins.BRT] = 150_000_000_000_000;
@@ -37,10 +40,7 @@ defaultAmount[coins.WBTC] = 3_000;
 
 // A conservative upper limit on the max gas price per transaction block in SUI
 export const MAX_GAS_PRICE_PER_TRANSACTION = 4_400_000;
-
-const RIDE_THE_TREND_LIMIT = 1.000005;
-const ARBITRAGE_RELATIVE_LIMIT = 1.0001;
-const MARKET_DIFFERENCE_LIMIT = 1.01;
+export const ARBITRAGE_RELATIVE_LIMIT = 0.99;
 
 // Setup wallet from passphrase.
 const phrase = process.env.ADMIN_PHRASE;
@@ -52,98 +52,56 @@ const cetusUSDCtoSUI = new CetusPool(
   coins.USDC,
   coins.SUI
 );
-const cetusCETUStoSUI = new CetusPool(
-  "0x2e041f3fd93646dcc877f783c1f2b7fa62d30271bdef1f21ef002cebf857bded",
-  coins.CETUS,
-  coins.SUI
-);
-const cetusUSDCtoCETUS = new CetusPool(
-  "0x238f7e4648e62751de29c982cbf639b4225547c31db7bd866982d7d56fc2c7a8",
-  coins.USDC,
-  coins.CETUS
-);
+// const cetusCETUStoSUI = new CetusPool(
+//   "0x2e041f3fd93646dcc877f783c1f2b7fa62d30271bdef1f21ef002cebf857bded",
+//   coins.CETUS,
+//   coins.SUI
+// );
+// const cetusUSDCtoCETUS = new CetusPool(
+//   "0x238f7e4648e62751de29c982cbf639b4225547c31db7bd866982d7d56fc2c7a8",
+//   coins.USDC,
+//   coins.CETUS
+// );
 const turbosSUItoUSDC = new TurbosPool(
   "0x5eb2dfcdd1b15d2021328258f6d5ec081e9a0cdcfa9e13a0eaeb9b5f7505ca78",
   coins.SUI,
   coins.USDC,
   "0x91bfbc386a41afcfd9b2533058d7e915a1d3829089cc268ff4333d54d6339ca1::fee3000bps::FEE3000BPS"
 );
-const cetusWBTCtoUSDC = new CetusPool(
-  "0xaa57c66ba6ee8f2219376659f727f2b13d49ead66435aa99f57bb008a64a8042",
-  coins.WBTC,
-  coins.USDC
-);
+// const cetusUSDCtoWBTC = new CetusPool(
+//   "0xaa57c66ba6ee8f2219376659f727f2b13d49ead66435aa99f57bb008a64a8042",
+//   coins.USDC,
+//   coins.WBTC
+// );
 
 capybot.addPool(cetusUSDCtoSUI);
-capybot.addPool(cetusCETUStoSUI);
-capybot.addPool(cetusUSDCtoCETUS);
+// capybot.addPool(cetusCETUStoSUI);
+// capybot.addPool(cetusUSDCtoCETUS);
 capybot.addPool(turbosSUItoUSDC);
-capybot.addPool(cetusWBTCtoUSDC);
-capybot.addDataSource(new BinanceBTCtoUSDC());
-
-// Trend riding strategies
-capybot.addStrategy(
-  new RideTheTrend(
-    cetusUSDCtoSUI.uri,
-    5,
-    10,
-    [
-      defaultAmount[cetusUSDCtoSUI.coinTypeA],
-      defaultAmount[cetusUSDCtoSUI.coinTypeB],
-    ],
-    RIDE_THE_TREND_LIMIT,
-    "RideTheTrend (USDC/SUI)"
-  )
-);
-capybot.addStrategy(
-  new RideTheTrend(
-    cetusCETUStoSUI.uri,
-    5,
-    10,
-    [
-      defaultAmount[cetusCETUStoSUI.coinTypeA],
-      defaultAmount[cetusCETUStoSUI.coinTypeB],
-    ],
-    RIDE_THE_TREND_LIMIT,
-    "RideTheTrend (CETUS/SUI)"
-  )
-);
-capybot.addStrategy(
-  new RideTheTrend(
-    cetusUSDCtoCETUS.uri,
-    5,
-    10,
-    [
-      defaultAmount[cetusUSDCtoCETUS.coinTypeA],
-      defaultAmount[cetusUSDCtoCETUS.coinTypeB],
-    ],
-    RIDE_THE_TREND_LIMIT,
-    "RideTheTrend (USDC/CETUS)"
-  )
-);
+// capybot.addPool(cetusUSDCtoWBTC);
 
 // Add triangular arbitrage strategy: USDC/SUI -> (CETUS/SUI)^-1 -> (USDC/CETUS)^-1.
-capybot.addStrategy(
-  new Arbitrage(
-    [
-      {
-        pool: turbosSUItoUSDC.uri,
-        a2b: true,
-      },
-      {
-        pool: cetusUSDCtoCETUS.uri,
-        a2b: true,
-      },
-      {
-        pool: cetusCETUStoSUI.uri,
-        a2b: true,
-      },
-    ],
-    defaultAmount[coins.SUI],
-    ARBITRAGE_RELATIVE_LIMIT,
-    "Arbitrage: SUI -Turbos-> USDC -Cetus-> CETUS -Cetus-> SUI"
-  )
-);
+// capybot.addStrategy(
+//   new Arbitrage(
+//     [
+//       {
+//         pool: turbosSUItoUSDC.uri,
+//         a2b: true,
+//       },
+//       {
+//         pool: cetusUSDCtoCETUS.uri,
+//         a2b: true,
+//       },
+//       {
+//         pool: cetusCETUStoSUI.uri,
+//         a2b: true,
+//       },
+//     ],
+//     defaultAmount[coins.SUI],
+//     ARBITRAGE_RELATIVE_LIMIT,
+//     "Arbitrage: SUI -Turbos-> USDC -Cetus-> CETUS -Cetus-> SUI"
+//   )
+// );
 
 capybot.addStrategy(
   new Arbitrage(
@@ -163,28 +121,5 @@ capybot.addStrategy(
   )
 );
 
-capybot.addStrategy(
-  new MarketDifference(
-    cetusWBTCtoUSDC,
-    "BinanceBTCtoUSDC",
-    [defaultAmount[coins.WBTC], defaultAmount[coins.USDC]],
-    MARKET_DIFFERENCE_LIMIT,
-    "Market diff: (W)BTC/USDC, Binance vs CETUS"
-  )
-);
-
-capybot.addStrategy(
-  new RideTheExternalTrend(
-    cetusWBTCtoUSDC.uri,
-    "BinanceBTCtoUSDC",
-    5,
-    10,
-    [defaultAmount[coins.WBTC], defaultAmount[coins.USDC]],
-    RIDE_THE_TREND_LIMIT,
-    1.0001,
-    "Ride external trend: (W)BTC/USDC, Binance vs CETUS"
-  )
-);
-
 // Start the bot
-capybot.loop(3.6e6, 1000);
+capybot.loop(3.6e6, 10_000);
