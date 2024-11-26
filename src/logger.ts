@@ -1,15 +1,19 @@
 // export const logger = require("pino")();
 
 class Logger {
-  BLUE: string;
-  GREEN: string;
   RED: string;
+  GREEN: string;
+  YELLOW: string;
+  BLUE: string;
+  PURPLE: string;
   RESET: string;
 
   constructor() {
-    this.BLUE = "\x1b[34m";
-    this.GREEN = "\x1b[32m";
     this.RED = "\x1b[31m";
+    this.GREEN = "\x1b[32m";
+    this.YELLOW = "\x1b[33m";
+    this.BLUE = "\x1b[34m";
+    this.PURPLE = "\x1b[35m";
     this.RESET = "\x1b[0m";
   }
 
@@ -20,7 +24,7 @@ class Logger {
   }
 
   info(data: any, message: string) {
-    console.log(`[${this.timestamp()}] ${this.GREEN}INFO${this.RESET} ${message}: `, data);
+    console.log(`[${this.timestamp()}] ${this.PURPLE}${message}${this.RESET}: `, data);
   }
 
   error(error: any) {

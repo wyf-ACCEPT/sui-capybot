@@ -3,13 +3,14 @@ import SDK, {
   SdkOptions,
   adjustForSlippage,
   d,
+  initCetusSDK,
 } from "@cetusprotocol/cetus-sui-clmm-sdk/dist";
 import {
   JsonRpcProvider,
   SUI_CLOCK_OBJECT_ID,
-  TransactionBlock,
   mainnetConnection,
 } from "@mysten/sui.js";
+import { Transaction } from "@mysten/sui/transactions";
 import BN from "bn.js";
 import { getCoinInfo } from "../../coins/coins";
 import { keypair } from "../../index";
@@ -19,10 +20,6 @@ import { Pool, PreswapResult } from "../pool";
 import { mainnet } from "./mainnet_config";
 import {logger} from "../../logger";
 
-function buildSdkOptions(): SdkOptions {
-  return mainnet;
-}
-
 export class CetusPool extends Pool<CetusParams> {
   private sdk: SDK;
   private provider: JsonRpcProvider;
@@ -30,7 +27,7 @@ export class CetusPool extends Pool<CetusParams> {
 
   constructor(address: string, coinTypeA: string, coinTypeB: string) {
     super(address, coinTypeA, coinTypeB);
-    this.sdk = new SDK(buildSdkOptions());
+    this.sdk = initCetusSDK({ network: 'mainnet' });
     this.sdk.senderAddress = keypair.getPublicKey().toSuiAddress();
 
     this.provider = new JsonRpcProvider(mainnetConnection);
@@ -44,9 +41,9 @@ export class CetusPool extends Pool<CetusParams> {
    * @returns Transaction block
    */
   async createSwapTransaction(
-    transactionBlock: TransactionBlock,
+    transaction: Transaction,
     params: CetusParams
-  ): Promise<TransactionBlock> {
+  ): Promise<Transaction> {
     const totalBalance = await getTotalBalanceByCoinType(
       this.provider,
       this.senderAddress,
@@ -60,7 +57,7 @@ export class CetusPool extends Pool<CetusParams> {
     );
 
     if (params.amountIn > 0 && Number(totalBalance) >= params.amountIn) {
-      const txb = await this.createCetusTransactionBlockWithSDK(params);
+      const tx = await this.createCetusTransactionBlockWithSDK(params);
 
       let target = "";
       let args: string[] = [];
@@ -71,7 +68,7 @@ export class CetusPool extends Pool<CetusParams> {
       let moduleName: string = "";
       let functionName: string = "";
 
-      const moveCall = txb.blockData.transactions.find((obj) => {
+      const moveCall = tx.blockData.transactions.find((obj) => {
         if (obj.kind === "MoveCall") return obj.target;
       });
 
@@ -80,7 +77,7 @@ export class CetusPool extends Pool<CetusParams> {
         [packageName, moduleName, functionName] = target.split("::");
       }
 
-      const inputs = txb.blockData.inputs;
+      const inputs = tx.blockData.inputs;
 
       args = [];
 
@@ -89,13 +86,13 @@ export class CetusPool extends Pool<CetusParams> {
           input.kind === "Input" &&
           (input.type === "object" || input.type === "pure")
         )
-          args.push(input.value);
+          args.push(input.value as string);
       });
 
       if (moveCall?.kind === "MoveCall" && moveCall?.typeArguments)
         typeArguments = moveCall.typeArguments;
 
-      let makeMoveVec = txb.blockData.transactions.find((obj) => {
+      let makeMoveVec = tx.blockData.transactions.find((obj) => {
         if (obj.kind === "MakeMoveVec") return obj;
       });
       if (makeMoveVec?.kind === "MakeMoveVec" && makeMoveVec?.objects)
@@ -146,7 +143,7 @@ export class CetusPool extends Pool<CetusParams> {
 
   async createCetusTransactionBlockWithSDK(
     params: CetusParams
-  ): Promise<TransactionBlock> {
+  ): Promise<Transaction> {
     console.log(
       `a2b: ${params.a2b}, amountIn: ${params.amountIn}, amountOut: ${params.amountOut}, byAmountIn: ${params.byAmountIn}, slippage: ${params.slippage}`
     );
@@ -168,10 +165,10 @@ export class CetusPool extends Pool<CetusParams> {
     const res: any = await this.sdk.Swap.preswap({
       a2b: params.a2b,
       amount: coinAmount.toString(),
-      by_amount_in: byAmountIn,
+      byAmountIn: byAmountIn,
       coinTypeA: this.coinTypeA,
       coinTypeB: this.coinTypeB,
-      current_sqrt_price: pool.current_sqrt_price,
+      currentSqrtPrice: pool.current_sqrt_price,
       decimalsA: coinA.decimals,
       decimalsB: coinB.decimals,
       pool: pool,
@@ -189,8 +186,8 @@ export class CetusPool extends Pool<CetusParams> {
     );
 
     // build swap Payload
-    const transactionBlock: TransactionBlock =
-      await this.sdk.Swap.createSwapTransactionPayload({
+    const transaction: Transaction =
+      (await this.sdk.Swap.createSwapTransactionPayload({
         pool_id: pool.poolAddress,
         coinTypeA: pool.coinTypeA,
         coinTypeB: pool.coinTypeB,
@@ -198,8 +195,8 @@ export class CetusPool extends Pool<CetusParams> {
         by_amount_in: byAmountIn,
         amount: res.amount.toString(),
         amount_limit: amountLimit.toString(),
-      });
+      }));
 
-    return transactionBlock;
+    return transaction;
   }
 }

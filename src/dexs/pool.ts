@@ -1,4 +1,4 @@
-import { TransactionBlock } from "@mysten/sui.js";
+import { Transaction } from "@mysten/sui/transactions";
 import { DataPoint, DataType } from "../data_sources/data_point";
 import { DataSource } from "../data_sources/data_source";
 import { CetusParams, SuiswapParams, TurbosParams } from "./dexsParams";
@@ -43,9 +43,9 @@ export abstract class Pool<
    * @returns A Promise of type TransactionBlock.
    */
   abstract createSwapTransaction(
-    transactionBlock: TransactionBlock,
+    transaction: Transaction,
     params: C
-  ): Promise<TransactionBlock>;
+  ): Promise<Transaction>;
 
   /**
    * Abstract method for estimating the price of a cryptocurrency swap and the fee.

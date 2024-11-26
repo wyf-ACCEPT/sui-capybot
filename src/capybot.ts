@@ -2,9 +2,9 @@ import {
   JsonRpcProvider,
   Keypair,
   RawSigner,
-  TransactionBlock,
   mainnetConnection,
 } from "@mysten/sui.js";
+import { Transaction } from "@mysten/sui/transactions"
 import { setTimeout } from "timers/promises";
 import { DataSource } from "./data_sources/data_source";
 import { CetusPool } from "./dexs/cetus/cetus";
@@ -49,7 +49,7 @@ export class Capybot {
     }
     logger.info({ strategies: uniqueStrategies }, "strategies");
 
-    let transactionBlock: TransactionBlock = new TransactionBlock();
+    let transaction: Transaction = new Transaction();
     while (new Date().getTime() - startTime < duration) {
       for (const uri in this.dataSources) {
         let dataSource = this.dataSources[uri];
@@ -67,7 +67,7 @@ export class Capybot {
           let tradeOrders = strategy.evaluate(data);
 
           // Create transactions for the suggested trades
-          transactionBlock = new TransactionBlock();
+          transaction = new Transaction();
           for (const order of tradeOrders) {
             logger.info({ strategy: strategy.uri, decision: order }, "order");
             let amountIn = Math.round(order.amountIn);
@@ -77,9 +77,9 @@ export class Capybot {
             const slippage: number = 1; // TODO: Define this in a meaningful way. Perhaps by the strategies.
 
             if (this.pools[order.pool] instanceof CetusPool) {
-              transactionBlock = await this.pools[
+              transaction = await this.pools[
                 order.pool
-              ].createSwapTransaction(transactionBlock, {
+              ].createSwapTransaction(transaction, {
                 a2b,
                 amountIn,
                 amountOut,
@@ -87,16 +87,16 @@ export class Capybot {
                 slippage,
               });
             } else if (this.pools[order.pool] instanceof SuiswapPool) {
-              transactionBlock = await this.pools[
+              transaction = await this.pools[
                 order.pool
-              ].createSwapTransaction(transactionBlock, {
+              ].createSwapTransaction(transaction, {
                 a2b,
                 amountIn,
               });
             } else if (this.pools[order.pool] instanceof TurbosPool) {
-              transactionBlock = await this.pools[
+              transaction = await this.pools[
                 order.pool
-              ].createSwapTransaction(transactionBlock, {
+              ].createSwapTransaction(transaction, {
                 a2b,
                 amountIn,
                 amountSpecifiedIsInput: true,
@@ -104,8 +104,10 @@ export class Capybot {
               });
             }
           }
+
+          logger.info(transaction.blockData.transactions, "transaction");
           // Execute the transactions
-          await this.executeTransactionBlock(transactionBlock, strategy);
+          // await this.executeTransactionBlock(transaction, strategy);
         }
       }
       await setTimeout(delay);

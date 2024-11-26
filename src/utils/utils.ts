@@ -4,9 +4,9 @@ import {
   PaginatedCoins,
   SuiAddress,
   TransactionArgument,
-  TransactionBlock,
   normalizeSuiObjectId,
 } from "@mysten/sui.js";
+import { Transaction } from "@mysten/sui/transactions";
 import { coins } from "../index";
 
 import Decimal from "decimal.js";
@@ -14,14 +14,14 @@ import Decimal from "decimal.js";
 export const SUI_COIN_OBJECT_ID = "0x2::sui::SUI";
 
 export function convertTradeCoins(
-  txb: TransactionBlock,
+  tx: Transaction,
   coinIds: string[],
   coinType: string,
   amount: Decimal
 ): TransactionArgument[] {
   return isSuiCoin(coinType)
-    ? [txb.splitCoins(txb.gas, [txb.pure(amount.toNumber())])[0]!]
-    : coinIds.map((id) => txb.object(id));
+    ? [tx.splitCoins(tx.gas, [tx.pure.u64(amount.toNumber())])[0]!]
+    : coinIds.map((id) => tx.object(id));
 }
 
 export type SuiStructTag = {
@@ -201,7 +201,7 @@ export async function getBalancesForCoinTypes(
 }
 
 export async function buildInputCoinForAmount(
-  txb: TransactionBlock,
+  tx: Transaction,
   amount: bigint,
   coinType: string,
   owner: SuiAddress,
@@ -227,7 +227,7 @@ export async function buildInputCoinForAmount(
 
   if (isSUI(coinType)) {
     console.log(`coinType: (${coinType}), amount: (${amount})`);
-    return [txb.splitCoins(txb.gas, [txb.pure(amount)])[0]!];
+    return [tx.splitCoins(tx.gas, [amount])[0]!];
   }
 
   const coinObjectIds = await selectTradeCoins(

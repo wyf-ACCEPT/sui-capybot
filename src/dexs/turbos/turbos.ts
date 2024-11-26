@@ -3,10 +3,10 @@ import {
   SUI_CLOCK_OBJECT_ID,
   SuiObjectResponse,
   TransactionArgument,
-  TransactionBlock,
   getObjectFields,
   mainnetConnection,
 } from "@mysten/sui.js";
+import { Transaction } from "@mysten/sui/transactions";
 import BN from "bn.js";
 import Decimal from "decimal.js";
 import { Network, Trade, TurbosSdk } from "turbos-clmm-sdk";
@@ -66,7 +66,7 @@ export class TurbosPool extends Pool<TurbosParams> {
 
     this.provider = new JsonRpcProvider(mainnetConnection);
 
-    this.sdk = new TurbosSdk(Network.mainnet, this.provider);
+    this.sdk = new TurbosSdk(Network.mainnet);
 
     this.provider = new JsonRpcProvider(mainnetConnection);
     this.senderAddress = keypair.getPublicKey().toSuiAddress();
@@ -74,14 +74,14 @@ export class TurbosPool extends Pool<TurbosParams> {
 
   /**
    * Create swap transaction
-   * @param transactionBlock Transaction block
+   * @param transaction Transaction
    * @param params Turbos parameters
-   * @returns Transaction block
+   * @returns Transaction
    */
   async createSwapTransaction(
-    transactionBlock: TransactionBlock,
+    transaction: Transaction,
     params: TurbosParams
-  ): Promise<TransactionBlock> {
+  ): Promise<Transaction> {
     const totalBalance = await getTotalBalanceByCoinType(
       this.provider,
       this.senderAddress,
@@ -101,14 +101,14 @@ export class TurbosPool extends Pool<TurbosParams> {
         this.uri ===
           "0x5eb2dfcdd1b15d2021328258f6d5ec081e9a0cdcfa9e13a0eaeb9b5f7505ca78"
       )
-        return transactionBlock;
+        return transaction;
       return await this.createTurbosTransactionBlockWithSDK(
-        transactionBlock,
+        transaction,
         params
       );
     }
 
-    return transactionBlock;
+    return transaction;
   }
 
   async createTransactionBlock(
@@ -116,7 +116,7 @@ export class TurbosPool extends Pool<TurbosParams> {
     amountIn: number,
     amountSpecifiedIsInput: boolean,
     slippage: number
-  ): Promise<TransactionBlock | undefined> {
+  ): Promise<Transaction | undefined> {
     console.log(
       `Swap: (${amountIn}) [${a2b ? this.coinTypeA : this.coinTypeB}], 
        To: [${!a2b ? this.coinTypeA : this.coinTypeB}], 
@@ -126,11 +126,11 @@ export class TurbosPool extends Pool<TurbosParams> {
 
     const functionName = a2b ? "swap_a_b" : "swap_b_a";
 
-    const transactionBlock = new TransactionBlock();
+    const transaction = new Transaction();
 
     const coins: TransactionArgument[] | undefined =
       await buildInputCoinForAmount(
-        transactionBlock,
+        transaction,
         BigInt(amountIn),
         a2b ? this.coinTypeA : this.coinTypeB,
         admin!,
@@ -138,54 +138,51 @@ export class TurbosPool extends Pool<TurbosParams> {
       );
 
     if (typeof coins !== "undefined") {
-      transactionBlock.moveCall({
+      transaction.moveCall({
         target: `${this.package}::${this.module}::${functionName}`,
         arguments: [
-          transactionBlock.object(this.uri),
-          transactionBlock.makeMoveVec({
-            objects: coins,
+          transaction.object(this.uri),
+          transaction.makeMoveVec({
+            elements: coins,
           }),
-          transactionBlock.pure(amountIn.toFixed(0), "u64"),
-          transactionBlock.pure(
+          transaction.pure.u64(amountIn.toFixed(0)),
+          transaction.pure.u64(
             amountOutWithSlippage(
               amountIn,
               slippage.toString(),
               amountSpecifiedIsInput
             ),
-            "u64"
           ),
-          transactionBlock.pure(
+          transaction.pure.u128(
             tickIndexToSqrtPriceX64(
               a2b ? MIN_TICK_INDEX : MAX_TICK_INDEX
-            ).toString(),
-            "u128"
+            ).toString()
           ),
-          transactionBlock.pure(amountSpecifiedIsInput, "bool"),
-          transactionBlock.object(this.senderAddress),
-          transactionBlock.pure(Date.now() + ONE_MINUTE * 3, "u64"),
-          transactionBlock.object(SUI_CLOCK_OBJECT_ID),
-          transactionBlock.object(this.versioned),
+          transaction.pure.bool(amountSpecifiedIsInput),
+          transaction.object(this.senderAddress),
+          transaction.pure.u64(Date.now() + ONE_MINUTE * 3),
+          transaction.object(SUI_CLOCK_OBJECT_ID),
+          transaction.object(this.versioned),
         ],
         typeArguments: [this.coinTypeA, this.coinTypeB, this.coinTypeC],
       });
 
-      return transactionBlock;
+      return transaction;
     }
     return undefined;
   }
   async createTurbosTransactionBlockWithSDK(
-    transactionBlock: TransactionBlock,
+    transaction: Transaction,
     params: TurbosParams
-  ): Promise<TransactionBlock> {
+  ): Promise<Transaction> {
     console.log("createTurbosTransactionBlockWithSDK, a2b: ", params.a2b);
     const swapResult: Trade.ComputedSwapResult =
-      await this.sdk.trade.computeSwapResult({
-        pool: this.uri,
-        a2b: params.a2b,
+      (await this.sdk.trade.computeSwapResult({
+        pools: [{ pool: this.uri, a2b: params.a2b }],
         address: this.senderAddress,
         amountSpecified: params.amountIn,
         amountSpecifiedIsInput: params.amountSpecifiedIsInput,
-      });
+      }))[0];
     console.log("swapResult: ", swapResult);
 
     return this.sdk.trade.swap({
@@ -205,7 +202,7 @@ export class TurbosPool extends Pool<TurbosParams> {
       amountB: swapResult.amount_b,
       amountSpecifiedIsInput: params.amountSpecifiedIsInput,
       slippage: params.slippage.toString(),
-      txb: transactionBlock,
+      txb: transaction,
     });
   }
 

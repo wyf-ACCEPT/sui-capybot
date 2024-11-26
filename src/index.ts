@@ -7,6 +7,8 @@ import { Arbitrage } from "./strategies/arbitrage";
 import { formatUnits, parseUnits } from "ethers";
 import { readFileSync } from "fs";
 
+const FOREVER = 100_000_000; // 28 hours
+
 // Convenience map from name to address for commonly used coins
 export const coins = {
   SUI: "0x2::sui::SUI",
@@ -122,4 +124,4 @@ capybot.addStrategy(
 );
 
 // Start the bot
-capybot.loop(3.6e6, 10_000);
+capybot.loop(3.6e6, FOREVER);
