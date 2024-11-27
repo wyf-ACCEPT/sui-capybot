@@ -118,6 +118,7 @@ export class Capybot {
   ) {
     if (transactionBlock.blockData.transactions.length !== 0) {
       try {
+        logger.info(transactionBlock.blockData.transactions, "blockData");
         transactionBlock.setGasBudget(50_000_000);  // 0.05 SUI
         let result = await this.signer.signAndExecuteTransactionBlock({
           transactionBlock,

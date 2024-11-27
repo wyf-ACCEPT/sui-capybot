@@ -3,6 +3,7 @@ import SDK, {
   SdkOptions,
   adjustForSlippage,
   d,
+  initCetusSDK
 } from "@cetusprotocol/cetus-sui-clmm-sdk/dist";
 import {
   JsonRpcProvider,
@@ -19,10 +20,6 @@ import { Pool, PreswapResult } from "../pool";
 import { mainnet } from "./mainnet_config";
 import {logger} from "../../logger";
 
-function buildSdkOptions(): SdkOptions {
-  return mainnet;
-}
-
 export class CetusPool extends Pool<CetusParams> {
   private sdk: SDK;
   private provider: JsonRpcProvider;
@@ -30,7 +27,7 @@ export class CetusPool extends Pool<CetusParams> {
 
   constructor(address: string, coinTypeA: string, coinTypeB: string) {
     super(address, coinTypeA, coinTypeB);
-    this.sdk = new SDK(buildSdkOptions());
+    this.sdk = initCetusSDK({ network: 'mainnet' });
     this.sdk.senderAddress = keypair.getPublicKey().toSuiAddress();
 
     this.provider = new JsonRpcProvider(mainnetConnection);
@@ -107,6 +104,17 @@ export class CetusPool extends Pool<CetusParams> {
 
       args = args.filter((item) => !coins.includes(item));
 
+      // logger.info(args[0], "args[0]");
+      // logger.info(args[1], "args[1]");
+      // logger.info(coins.map((id) => transactionBlock.object(id)), "args[2]");
+      // logger.info(args[2], "args[3]");
+      // logger.info(args[3], "args[4]");
+      // logger.info(args[4], "args[5]");
+      // logger.info(args[5], "args[6]");
+      // logger.info(transactionBlock.object(SUI_CLOCK_OBJECT_ID), "args[7]");
+      // logger.info(txb.blockData.transactions, "original txb")
+      logger.info(txb.blockData.inputs[2], "movecall input")
+
       transactionBlock.moveCall({
         target: `${packageName}::${moduleName}::${functionName}`,
         arguments: [
@@ -168,10 +176,10 @@ export class CetusPool extends Pool<CetusParams> {
     const res: any = await this.sdk.Swap.preswap({
       a2b: params.a2b,
       amount: coinAmount.toString(),
-      by_amount_in: byAmountIn,
+      byAmountIn: byAmountIn,
       coinTypeA: this.coinTypeA,
       coinTypeB: this.coinTypeB,
-      current_sqrt_price: pool.current_sqrt_price,
+      currentSqrtPrice: pool.current_sqrt_price,
       decimalsA: coinA.decimals,
       decimalsB: coinB.decimals,
       pool: pool,
@@ -198,7 +206,7 @@ export class CetusPool extends Pool<CetusParams> {
         by_amount_in: byAmountIn,
         amount: res.amount.toString(),
         amount_limit: amountLimit.toString(),
-      });
+      }) as any as TransactionBlock;
 
     return transactionBlock;
   }

@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@binance/connector": "^3.0.0-rc.2",
-    "@cetusprotocol/cetus-sui-clmm-sdk": "^2.7.2",
+    "@cetusprotocol/cetus-sui-clmm-sdk": "^5.1.10",
     "@mysten/sui.js": "^0.34.1",
     "@thanpolas/univ3prices": "^3.0.2",
     "axios": "^1.4.0",
